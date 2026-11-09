@@ -223,12 +223,20 @@ const VALUERS = {
   async UNIV4SWAP() { return []; },
 };
 
-const isRevert = (e) => /revert|CALL_EXCEPTION/i.test(String(e && e.message));
+// Matches an RPC URL inside an SDK error message. The SDK names every RPC it
+// tried, and some RPC URLs contain "revert" (https://rpc.mevblocker.io/noreverts).
+const RPC_URL = /https?:\/\/[^\s,]+/gi;
+
+// isRevert reports whether a read failed because the contract reverted, as
+// opposed to every RPC failing (timeout, rate limit, bad response). It matches
+// only the nodes' own error text, with the RPC URLs removed.
+const isRevert = (e) => /revert|CALL_EXCEPTION/i.test(String(e && e.message).replace(RPC_URL, ''));
 
 /**
  * Values one strategy position manager and adds its holdings. A strategy with
  * no valuer, a missing venue entry, or a reverting read is logged and skipped
- * so the rest of the chain's TVL still reports; other errors (RPC) propagate.
+ * so the rest of the chain's TVL still reports. An RPC failure propagates, so
+ * a strategy is never left out of the TVL because the RPCs were down.
  */
 async function addStrategyPosition(api, strategy) {
   const valuer = VALUERS[strategy.protocol];
